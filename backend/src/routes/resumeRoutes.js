@@ -1,8 +1,11 @@
-const express = require("express");
-const router = express.Router();
-const upload = require("../middleware/upload");
-const { uploadResume } = require("../controllers/resumeController");
+const express = require('express');
+const { uploadResume } = require('../controllers/resumeController');
+const upload = require('../middleware/upload');
+const { protect } = require('../middleware/authMiddleware');
+const { checkResumeLimit } = require('../middleware/freemiumMiddleware');
 
-router.post("/resume/upload", upload.single("resume"), uploadResume);
+const router = express.Router();
+
+router.post('/resume/upload', protect, checkResumeLimit, upload.single('resume'), uploadResume);
 
 module.exports = router;
