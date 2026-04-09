@@ -31,7 +31,8 @@ export const interviewAPI = {
 
 export const dsaAPI = {
   start: (data) => API.post('/interview/dsa/start', data),
-  chat: (data) => API.post('/interview/dsa/chat', data)
+  chat: (data) => API.post('/interview/dsa/chat', data),
+  evaluate: (data) => API.post('/interview/dsa/evaluate', data)
 };
 
 export const dashboardAPI = {

@@ -47,6 +47,9 @@ export default function InterviewDSA() {
   const [code, setCode] = useState(DEFAULT_BOILERPLATE.javascript);
   const [output, setOutput] = useState('');
   const [showOutput, setShowOutput] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [evalResult, setEvalResult] = useState(null);
 
   // ─── Timer ───
   const [timeLeft, setTimeLeft] = useState(45 * 60); // 45 minutes in seconds
@@ -59,15 +62,69 @@ export default function InterviewDSA() {
   const [aiTyping, setAiTyping] = useState(false);
   const chatEndRef = useRef(null);
 
-  // ─── Voice ───
+  // ─── Voice input ───
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef(null);
+  const boilerplateRef = useRef(DEFAULT_BOILERPLATE.javascript);
+
+  // ─── TTS (Text-to-Speech) ───
+  const [isMuted, setIsMuted] = useState(false);
+  const isMutedRef = useRef(false);
+
+  // ─── Keep muted ref in sync ───
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  // ─── Load TTS voices (async in some browsers) ───
+  useEffect(() => {
+    const loadVoices = () => window.speechSynthesis.getVoices();
+    loadVoices();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
+  // ─── speakText utility ───
+  const speakText = useCallback((text) => {
+    if (isMutedRef.current) return;
+    window.speechSynthesis.cancel();
+
+    // Strip markdown formatting
+    const clean = text
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/`/g, '')
+      .replace(/#{1,6}\s?/g, '')
+      .replace(/\[(.+?)\]\(.+?\)/g, '$1');
+
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v =>
+      v.name.includes('Google US English') ||
+      v.name.includes('Microsoft David') ||
+      v.name.includes('Daniel') ||
+      (v.lang === 'en-US' && v.localService === false)
+    ) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onstart = () => setAiStatus('Speaking...');
+    utterance.onend = () => setAiStatus('Listening...');
+    utterance.onerror = () => setAiStatus('Listening...');
+
+    window.speechSynthesis.speak(utterance);
+  }, []);
 
   // ─── Fetch problem on mount ───
   useEffect(() => {
     fetchProblem();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      window.speechSynthesis.cancel();
     };
   }, []);
 
@@ -106,12 +163,17 @@ export default function InterviewDSA() {
       setProblem(data);
 
       // Set boilerplate code
-      const boilerplate = data.boilerplate?.[language] || DEFAULT_BOILERPLATE[language];
-      setCode(boilerplate);
+      const bp = data.boilerplate?.[language] || DEFAULT_BOILERPLATE[language];
+      setCode(bp);
+      // Store the current boilerplate so we can detect unchanged code
+      boilerplateRef.current = bp;
 
       // AI opening message
       const opening = `Hello! I've loaded a **${data.difficulty}** problem for you — "${data.title}". Take your time to read it carefully. If you have any doubts about the problem statement, ask me. When you're ready, walk me through your approach before you start coding.`;
       setMessages([{ role: 'assistant', content: opening }]);
+
+      // Speak the opening message after a short delay for voices to load
+      setTimeout(() => speakText(opening), 600);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to generate problem. Please try again.');
     }
@@ -128,21 +190,79 @@ export default function InterviewDSA() {
   // ─── Language change ───
   const handleLangChange = (newLang) => {
     setLanguage(newLang);
-    const boilerplate = problem?.boilerplate?.[newLang] || DEFAULT_BOILERPLATE[newLang];
-    setCode(boilerplate);
+    const bp = problem?.boilerplate?.[newLang] || DEFAULT_BOILERPLATE[newLang];
+    setCode(bp);
+    boilerplateRef.current = bp;
   };
 
-  // ─── Run code (mock) ───
-  const handleRunCode = () => {
-    setShowOutput(true);
-    setOutput('Running code...\n\n> Test case 1: Passed ✓\n> Test case 2: Passed ✓\n\nAll sample test cases passed!');
+  // ─── Check if code is unchanged boilerplate ───
+  const isCodeEmpty = () => {
+    const trimmed = code.trim();
+    if (!trimmed) return true;
+    // Compare against current boilerplate (strip whitespace for robust comparison)
+    const normalize = (s) => s.replace(/\s+/g, '');
+    const currentBP = boilerplateRef.current || DEFAULT_BOILERPLATE[language];
+    return normalize(trimmed) === normalize(currentBP);
   };
 
-  // ─── Submit code ───
-  const handleSubmitCode = () => {
+  // ─── Run code (AI-evaluated) ───
+  const handleRunCode = async () => {
     setShowOutput(true);
-    setOutput('Submitting solution...\n\n✓ Test case 1/5: Passed\n✓ Test case 2/5: Passed\n✓ Test case 3/5: Passed\n✓ Test case 4/5: Passed\n✓ Test case 5/5: Passed\n\n🎉 All test cases passed! Solution accepted.');
-    sendMessage("I've submitted my solution. Can you review my code and suggest any improvements?");
+    setEvalResult(null);
+    if (isCodeEmpty()) {
+      setOutput('⚠️ Please write your solution before submitting.');
+      return;
+    }
+    setRunning(true);
+    setOutput('Running code against test cases...');
+    try {
+      const res = await dsaAPI.evaluate({
+        code,
+        language,
+        problemTitle: problem?.title || '',
+        problemDescription: problem?.description || '',
+        userRole: config.jobTitle || 'Software Engineer',
+        company: config.company || '',
+      });
+      const data = res.data;
+      setEvalResult(data);
+      setOutput('');
+    } catch (err) {
+      setOutput('⚠️ Failed to run code. Please try again.');
+    }
+    setRunning(false);
+  };
+
+  // ─── Submit code (AI evaluation) ───
+  const handleSubmitCode = async () => {
+    setShowOutput(true);
+    if (isCodeEmpty()) {
+      setOutput('⚠️ Please write your solution before submitting.');
+      return;
+    }
+    setSubmitting(true);
+    setEvalResult(null);
+    setOutput('Evaluating your solution...');
+    try {
+      const res = await dsaAPI.evaluate({
+        code,
+        language,
+        problemTitle: problem?.title || '',
+        problemDescription: problem?.description || '',
+        userRole: config.jobTitle || 'Software Engineer',
+        company: config.company || '',
+      });
+      const data = res.data;
+      setEvalResult(data);
+      setOutput('');
+      // Also tell the AI interviewer about the result
+      const passed = data.testResults?.filter(t => t.passed).length || 0;
+      const total = data.testResults?.length || 5;
+      sendMessage(`I've submitted my solution. ${passed}/${total} test cases passed. Can you review my code and suggest improvements?`);
+    } catch (err) {
+      setOutput('⚠️ Failed to evaluate code. Please try again.');
+    }
+    setSubmitting(false);
   };
 
   // ─── Send chat message ───
@@ -166,15 +286,16 @@ export default function InterviewDSA() {
         conversationHistory: [...messages, userMsg].slice(-10),
       });
 
-      setAiStatus('Speaking...');
       const aiMsg = { role: 'assistant', content: res.data.reply };
       setMessages((prev) => [...prev, aiMsg]);
 
-      setTimeout(() => setAiStatus('Listening...'), 1500);
+      // Speak the AI reply
+      speakText(res.data.reply);
     } catch (err) {
-      const errMsg = { role: 'assistant', content: "I'm having trouble connecting right now. Please try again." };
+      const errText = "I'm having trouble connecting right now. Please try again.";
+      const errMsg = { role: 'assistant', content: errText };
       setMessages((prev) => [...prev, errMsg]);
-      setAiStatus('Listening...');
+      speakText(errText);
     }
     setAiTyping(false);
   }, [messages, problem]);
@@ -224,9 +345,17 @@ export default function InterviewDSA() {
     setIsRecording(true);
   };
 
+  // ─── Toggle mute ───
+  const toggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    if (next) window.speechSynthesis.cancel();
+  };
+
   // ─── Skip problem ───
   const handleSkip = () => {
     if (window.confirm('Are you sure you want to skip this problem?')) {
+      window.speechSynthesis.cancel();
       setTimeLeft(45 * 60);
       setOutput('');
       setShowOutput(false);
@@ -238,6 +367,7 @@ export default function InterviewDSA() {
   // ─── Submit interview ───
   const handleEndInterview = () => {
     if (window.confirm('Are you sure you want to end the interview?')) {
+      window.speechSynthesis.cancel();
       navigate('/dashboard');
     }
   };
@@ -414,11 +544,11 @@ export default function InterviewDSA() {
               ))}
             </select>
             <div className={s.editorBtns}>
-              <button className={s.btnRun} onClick={handleRunCode}>
-                ▶ Run
+              <button className={s.btnRun} onClick={handleRunCode} disabled={submitting || running}>
+                {running ? '⏳ Running...' : '▶ Run'}
               </button>
-              <button className={s.btnSubmitCode} onClick={handleSubmitCode}>
-                ✓ Submit
+              <button className={s.btnSubmitCode} onClick={handleSubmitCode} disabled={submitting || running}>
+                {submitting ? '⏳ Evaluating...' : '✓ Submit'}
               </button>
             </div>
           </div>
@@ -449,7 +579,49 @@ export default function InterviewDSA() {
           {showOutput && (
             <div className={s.outputPanel}>
               <div className={s.outputLabel}>Output</div>
-              <div className={s.outputText}>{output}</div>
+              {output && <pre className={s.outputText}>{output}</pre>}
+              {evalResult && (
+                <div className={s.evalResults}>
+                  <div className={s.evalSummary}>
+                    <span className={evalResult.overallPassed ? s.evalSummaryPass : s.evalSummaryFail}>
+                      {evalResult.overallPassed ? '🎉' : '❌'}{' '}
+                      {evalResult.testResults?.filter(t => t.passed).length || 0}/{evalResult.testResults?.length || 5} test cases passed
+                    </span>
+                  </div>
+                  <div className={s.testCasesList}>
+                    {evalResult.testResults?.map((t) => (
+                      <div key={t.id} className={`${s.testCaseRow} ${t.passed ? s.testCasePass : s.testCaseFail}`}>
+                        <div className={s.testCaseHeader}>
+                          <span className={t.passed ? s.testIconPass : s.testIconFail}>
+                            {t.passed ? '✓' : '✗'}
+                          </span>
+                          <span className={s.testCaseId}>Test {t.id}</span>
+                          <span className={t.passed ? s.testStatusPass : s.testStatusFail}>
+                            {t.passed ? 'Passed' : 'Failed'}
+                          </span>
+                        </div>
+                        {!t.passed && (
+                          <div className={s.testCaseDetails}>
+                            <div className={s.testDetailLine}><span className={s.testDetailLabel}>Input:</span> {t.input}</div>
+                            <div className={s.testDetailLine}><span className={s.testDetailLabel}>Expected:</span> {t.expected}</div>
+                            <div className={s.testDetailLine}><span className={s.testDetailLabel}>Got:</span> <span className={s.testGotValue}>{t.got}</span></div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className={s.complexityRow}>
+                    <span className={s.complexityItem}>⏱ Time: {evalResult.timeComplexity || 'N/A'}</span>
+                    <span className={s.complexityItem}>💾 Space: {evalResult.spaceComplexity || 'N/A'}</span>
+                  </div>
+                  {evalResult.feedback && (
+                    <div className={s.feedbackBlock}>
+                      <span className={s.feedbackIcon}>💬</span>
+                      <span className={s.feedbackText}>{evalResult.feedback}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -460,7 +632,17 @@ export default function InterviewDSA() {
         {/* AI Header */}
         <div className={s.aiHeader}>
           <div className={s.avatarWrap}>
-            <div className={`${s.avatar} ${aiStatus === 'Speaking...' ? s.avatarSpeaking : ''}`}>
+            {aiStatus === 'Speaking...' && (
+              <>
+                <span className={`${s.ripple} ${s.ripplePurple}`} />
+                <span className={`${s.ripple} ${s.ripplePurple} ${s.ripple2}`} />
+                <span className={`${s.ripple} ${s.ripplePurple} ${s.ripple3}`} />
+              </>
+            )}
+            <div className={`${s.avatar} ${
+              aiStatus === 'Speaking...' ? s.avatarSpeaking :
+              aiStatus === 'Thinking...' ? s.avatarThinking : ''
+            }`}>
               A
             </div>
           </div>
@@ -474,6 +656,13 @@ export default function InterviewDSA() {
               {aiStatus}
             </div>
           </div>
+          <button
+            className={`${s.muteBtn} ${isMuted ? s.muteBtnActive : ''}`}
+            onClick={toggleMute}
+            title={isMuted ? 'Unmute AI voice' : 'Mute AI voice'}
+          >
+            {isMuted ? '🔇' : '🔊'}
+          </button>
         </div>
 
         {/* Chat Area */}
@@ -513,6 +702,14 @@ export default function InterviewDSA() {
               onChange={(e) => setChatInput(e.target.value)}
               disabled={aiTyping}
             />
+            <div className={s.micWrap}>
+              {isRecording && (
+                <>
+                  <span className={`${s.rippleMic} ${s.rippleGreen}`} />
+                  <span className={`${s.rippleMic} ${s.rippleGreen} ${s.ripple2}`} />
+                  <span className={`${s.rippleMic} ${s.rippleGreen} ${s.ripple3}`} />
+                </>
+              )}
             <button
               type="button"
               className={`${s.micBtn} ${isRecording ? s.micBtnActive : ''}`}
@@ -521,6 +718,7 @@ export default function InterviewDSA() {
             >
               🎤
             </button>
+            </div>
             <button
               type="submit"
               className={s.sendBtn}

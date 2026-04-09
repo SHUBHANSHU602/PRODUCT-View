@@ -45,6 +45,16 @@
   50%      { color: #fca5a5; }
 }
 
+@keyframes rippleEffect {
+  0%   { width: 48px; height: 48px; opacity: 0.7; }
+  100% { width: 100px; height: 100px; opacity: 0; }
+}
+
+@keyframes rippleMicEffect {
+  0%   { width: 34px; height: 34px; opacity: 0.6; }
+  100% { width: 68px; height: 68px; opacity: 0; }
+}
+
 /* ---------- Layout ---------- */
 .page {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -504,8 +514,19 @@
   padding: 0.75rem 1rem;
   background: #0a0a10;
   flex-shrink: 0;
-  max-height: 120px;
+  max-height: 300px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a3d transparent;
+}
+
+.outputPanel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.outputPanel::-webkit-scrollbar-thumb {
+  background: #2a2a3d;
+  border-radius: 4px;
 }
 
 .outputLabel {
@@ -519,10 +540,157 @@
 
 .outputText {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.78rem;
-  color: #4ade80;
-  line-height: 1.5;
+  font-size: 0.76rem;
+  color: #c9c9d0;
+  line-height: 1.6;
   white-space: pre-wrap;
+  margin: 0;
+  padding: 0;
+}
+
+/* -- Structured eval results -- */
+.evalResults {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.evalSummary {
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #1e1e2e;
+}
+
+.evalSummaryPass {
+  color: #4ade80;
+}
+
+.evalSummaryFail {
+  color: #f87171;
+}
+
+.testCasesList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.testCaseRow {
+  background: #12121a;
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.testCasePass {
+  border-color: rgba(34, 197, 94, 0.15);
+}
+
+.testCaseFail {
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.testCaseHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.testIconPass {
+  color: #4ade80;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.testIconFail {
+  color: #f87171;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.testCaseId {
+  color: #a1a1aa;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+}
+
+.testStatusPass {
+  margin-left: auto;
+  color: #4ade80;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.testStatusFail {
+  margin-left: auto;
+  color: #f87171;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.testCaseDetails {
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(239, 68, 68, 0.04);
+  border-radius: 6px;
+  border-left: 2px solid rgba(239, 68, 68, 0.3);
+}
+
+.testDetailLine {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  color: #a1a1aa;
+  line-height: 1.65;
+}
+
+.testDetailLabel {
+  color: #71717a;
+  font-weight: 600;
+  margin-right: 0.3rem;
+}
+
+.testGotValue {
+  color: #f87171;
+}
+
+.complexityRow {
+  display: flex;
+  gap: 1.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #1e1e2e;
+}
+
+.complexityItem {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #a78bfa;
+}
+
+.feedbackBlock {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(108, 99, 255, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(108, 99, 255, 0.12);
+}
+
+.feedbackIcon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.feedbackText {
+  font-size: 0.78rem;
+  color: #c9c9d0;
+  line-height: 1.6;
 }
 
 /* ---------- Right Panel ---------- */
@@ -551,6 +719,9 @@
 .avatarWrap {
   position: relative;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .avatar {
@@ -568,6 +739,91 @@
 
 .avatarSpeaking {
   animation: avatarRing 1.5s ease-out infinite;
+  box-shadow: 0 0 20px rgba(108, 99, 255, 0.6);
+}
+
+/* -- Ripple rings (avatar — purple) -- */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid #6c63ff;
+  opacity: 0;
+  pointer-events: none;
+  animation: rippleEffect 1.5s ease-out infinite;
+}
+
+.ripplePurple {
+  border-color: #6c63ff;
+}
+
+.rippleGreen {
+  border-color: #22c55e;
+}
+
+.ripple2 {
+  animation-delay: 0.4s;
+}
+
+.ripple3 {
+  animation-delay: 0.8s;
+}
+
+/* -- Ripple rings (mic — green, smaller) -- */
+.rippleMic {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid #22c55e;
+  opacity: 0;
+  pointer-events: none;
+  animation: rippleMicEffect 1.5s ease-out infinite;
+}
+
+/* -- Mic wrapper for ripple positioning -- */
+.micWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatarThinking {
+  animation: spin 3s linear infinite;
+  opacity: 0.85;
+}
+
+/* -- Mute Button -- */
+.muteBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #2a2a3d;
+  background: rgba(108, 99, 255, 0.06);
+  color: #a1a1aa;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.muteBtn:hover {
+  background: rgba(108, 99, 255, 0.12);
+  border-color: rgba(108, 99, 255, 0.3);
+  color: #e4e4e7;
+}
+
+.muteBtnActive {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
+.muteBtnActive:hover {
+  background: rgba(239, 68, 68, 0.18);
 }
 
 .aiInfo {
@@ -755,9 +1011,10 @@
 }
 
 .micBtnActive {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
   animation: pulse 1s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
 }
 
 .sendBtn {
