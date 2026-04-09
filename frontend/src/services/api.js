@@ -29,6 +29,11 @@ export const interviewAPI = {
   getResults: (id) => API.get(`/interview/results/${id}`)
 };
 
+export const dsaAPI = {
+  start: (data) => API.post('/interview/dsa/start', data),
+  chat: (data) => API.post('/interview/dsa/chat', data)
+};
+
 export const dashboardAPI = {
   get: () => API.get('/dashboard')
 };
