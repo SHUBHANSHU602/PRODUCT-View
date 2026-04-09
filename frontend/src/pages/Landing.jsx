@@ -1,10 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import s from './Landing.module.css';
 
 export default function Landing() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState('');
+
+  // Check auth state on mount + listen for cross-tab storage changes
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('token');
+      setIsLoggedIn(!!token);
+      if (token) {
+        try {
+          const user = JSON.parse(localStorage.getItem('user'));
+          setUserName(user?.name || '');
+        } catch {
+          setUserName('');
+        }
+      } else {
+        setUserName('');
+      }
+    };
+
+    checkAuth();
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setIsLoggedIn(false);
+    setUserName('');
+    navigate('/');
+  };
 
   const scrollTo = (id) => {
     setMenuOpen(false);
@@ -25,8 +57,18 @@ export default function Landing() {
         </ul>
 
         <div className={s.navActions}>
-          <button className={s.btnLogin} onClick={() => navigate('/login')}>Log in</button>
-          <button className={s.btnCta} onClick={() => navigate('/register')}>Start Free</button>
+          {isLoggedIn ? (
+            <>
+              {userName && <span className={s.navGreeting}>Hi, {userName}</span>}
+              <button className={s.btnCta} onClick={() => navigate('/dashboard')}>Dashboard</button>
+              <button className={s.btnLogin} onClick={handleLogout}>Logout</button>
+            </>
+          ) : (
+            <>
+              <button className={s.btnLogin} onClick={() => navigate('/login')}>Log in</button>
+              <button className={s.btnCta} onClick={() => navigate('/register')}>Start Free</button>
+            </>
+          )}
         </div>
 
         <button className={s.hamburger} onClick={() => setMenuOpen(true)} aria-label="Open menu">
@@ -40,8 +82,18 @@ export default function Landing() {
         <a href="#features" onClick={(e) => { e.preventDefault(); scrollTo('features'); }}>Features</a>
         <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollTo('pricing'); }}>Pricing</a>
         <a href="#about" onClick={(e) => { e.preventDefault(); scrollTo('about'); }}>About</a>
-        <a href="#" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Log in</a>
-        <a href="#" onClick={(e) => { e.preventDefault(); navigate('/register'); }}>Start Free →</a>
+        {isLoggedIn ? (
+          <>
+            {userName && <span className={s.navGreeting}>Hi, {userName}</span>}
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate('/dashboard'); }}>Dashboard</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); handleLogout(); }}>Logout</a>
+          </>
+        ) : (
+          <>
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Log in</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate('/register'); }}>Start Free →</a>
+          </>
+        )}
       </div>
 
       {/* ───── Hero ───── */}
@@ -66,12 +118,25 @@ export default function Landing() {
           </p>
 
           <div className={s.heroButtons}>
-            <button className={s.btnHeroPrimary} onClick={() => navigate('/register')}>
-              Start Free →
-            </button>
-            <button className={s.btnHeroSecondary} onClick={() => scrollTo('about')}>
-              ▶ Watch Demo
-            </button>
+            {isLoggedIn ? (
+              <>
+                <button className={s.btnHeroPrimary} onClick={() => navigate('/dashboard')}>
+                  Go to Dashboard →
+                </button>
+                <button className={s.btnHeroSecondary} onClick={() => navigate('/interview-setup')}>
+                  ▶ Start Interview
+                </button>
+              </>
+            ) : (
+              <>
+                <button className={s.btnHeroPrimary} onClick={() => navigate('/register')}>
+                  Start Free →
+                </button>
+                <button className={s.btnHeroSecondary} onClick={() => scrollTo('about')}>
+                  ▶ Watch Demo
+                </button>
+              </>
+            )}
           </div>
         </div>
       </section>

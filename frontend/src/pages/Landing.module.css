@@ -114,6 +114,13 @@
   align-items: center;
 }
 
+.navGreeting {
+  color: #a78bfa;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .btnLogin {
   padding: 0.55rem 1.25rem;
   border-radius: 8px;
