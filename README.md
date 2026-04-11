@@ -6,7 +6,7 @@ A production-grade, full-stack AI-powered SaaS platform that helps students and 
 
 ## 📌 Table of Contents
 
-- [Overview]#overview)
+- [Overview](#overview)
 - [Live Demo](#live-demo)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
