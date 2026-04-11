@@ -631,7 +631,7 @@ MIT License — feel free to use this project for learning, portfolio, or buildi
 **Shubhanshu Singh**
 - CS Student | Backend Developer | AI Enthusiast
 - Building toward a Microsoft Software Engineering Internship
-- GitHub: [@shubhanshu](https://github.com/shubhanshu)
+- GitHub: [@shubhanshu](https://github.com/SHUBHANSHU602)
 - Email: shubhanshusingh602@gmail.com
 
 ---
